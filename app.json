@@ -15,8 +15,11 @@
       },
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.INTERNET"
-      ]
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "usesCleartextTraffic": true,
+      "package": "com.acd_delfino.fotoshare"
     },
     "plugins": [
       [
@@ -24,7 +27,20 @@
         {
           "cameraPermission": "FotoShare precisa da câmera para tirar fotos."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "fdff68d0-896c-463b-8fa2-8722d3a6597a"
+      }
+    }
   }
 }

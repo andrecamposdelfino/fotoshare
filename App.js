@@ -16,6 +16,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system";
 
 // ── Constantes ────────────────────────────────────────────
 const TABS = ["home", "history", "settings"];
@@ -68,11 +69,9 @@ export default function App() {
     setStatus("sending");
     setStatusMsg("Verificando...");
     try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 5000);
-      const res = await fetch(`${getUrl()}/ping`, { signal: ctrl.signal });
-      clearTimeout(t);
-      if (res.ok) {
+      const res = await fetch(`${getUrl()}/ping`);
+      const json = await res.json();
+      if (json.status === "ok") {
         setConnected(true);
         setStatus("done");
         setStatusMsg("Servidor encontrado");
@@ -81,13 +80,31 @@ export default function App() {
         setStatus("error");
         setStatusMsg("Servidor retornou erro");
       }
-    } catch {
+    } catch (e) {
       setConnected(false);
       setStatus("error");
-      setStatusMsg("Não foi possível conectar");
+      setStatusMsg(`Erro: ${e.message}`);
     }
   };
 
+  // const abrirCamera = async () => {
+  //   const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+  //   if (!granted) {
+  //     setStatus("error");
+  //     setStatusMsg("Permissão de câmera negada");
+  //     return;
+  //   }
+  //   const result = await ImagePicker.launchCameraAsync({
+  //     quality: 0.9,
+  //     allowsEditing: false,
+  //   });
+
+  //   if (!result.canceled) {
+  //     const uri = result.assets[0].uri;
+  //     setLastPhoto(uri);
+  //     enviar(uri);
+  //   }
+  // };
   const abrirCamera = async () => {
     const { granted } = await ImagePicker.requestCameraPermissionsAsync();
     if (!granted) {
@@ -109,50 +126,63 @@ export default function App() {
 
   const enviar = async (uri) => {
     if (!ip.trim()) {
-      setStatus('error');
-      setStatusMsg('Configure o servidor primeiro');
-      setTab('settings');
+      setStatus("error");
+      setStatusMsg("Configure o servidor primeiro");
+      setTab("settings");
       return;
     }
-    setStatus('sending');
-    setStatusMsg('Enviando...');
+    setStatus("sending");
+    setStatusMsg("Enviando...");
     try {
       const comp = await ImageManipulator.manipulateAsync(
-        uri, [{ resize: { width: 1280 } }],
-        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG }
+        uri,
+        [{ resize: { width: 1280 } }],
+        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG },
       );
 
       const formData = new FormData();
-      formData.append('foto', {
+      formData.append("foto", {
         uri: comp.uri,
         name: `foto_${Date.now()}.jpg`,
-        type: 'image/jpeg',
+        type: "image/jpeg",
       });
 
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 15000);
 
       const res = await fetch(`${getUrl()}/foto`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'multipart/form-data' },
+        method: "POST",
+        headers: { "Content-Type": "multipart/form-data" },
         body: formData,
         signal: ctrl.signal,
       });
       clearTimeout(t);
 
       if (res.ok) {
-        setStatus('done');
-        setStatusMsg('Foto enviada');
+        setStatus("done");
+        setStatusMsg("Foto enviada");
+        setLastPhoto(null); // limpa o preview
         setConnected(true);
+        try {
+          await FileSystem.deleteAsync(uri, { idempotent: true });
+        } catch {}
         const nome = `foto_${Date.now()}.jpg`;
-        const newHistory = [{ id: Date.now(), name: nome, uri: comp.uri, time: new Date().toISOString() }, ...history].slice(0, 50);
+        const newHistory = [
+          {
+            id: Date.now(),
+            name: nome,
+            uri: comp.uri,
+            time: new Date().toISOString(),
+          },
+          ...history,
+        ].slice(0, 50);
         await saveHistory(newHistory);
       } else {
-        setStatus('error');
+        setStatus("error");
         setStatusMsg(`Erro ${res.status}`);
       }
     } catch (e) {
-      setStatus('error');
+      setStatus("error");
       setStatusMsg(`Falha: ${e.message}`);
     }
   };
@@ -193,7 +223,16 @@ export default function App() {
         />
       )}
 
-      {tab === "history" && <HistoryTab history={history} />}
+      {/* {tab === "history" && <HistoryTab history={history} />} */}
+      {tab === "history" && (
+        <HistoryTab
+          history={history}
+          onDelete={(id) => {
+            const novo = history.filter((h) => h.id !== id);
+            saveHistory(novo);
+          }}
+        />
+      )}
 
       {tab === "settings" && (
         <SettingsTab
@@ -281,7 +320,10 @@ function HomeTab({ lastPhoto, status, statusMsg, connected, onCamera }) {
 }
 
 // ── Tela Histórico ────────────────────────────────────────
-function HistoryTab({ history }) {
+function HistoryTab({ history, onDelete }) {
+  const deletarItem = async (id) => {
+    if (onDelete) onDelete(id);
+  };
   return (
     <SafeAreaView style={s.screen}>
       <Text style={s.pageTitle}>Histórico</Text>
@@ -303,7 +345,17 @@ function HistoryTab({ history }) {
                 </Text>
                 <Text style={s.histTime}>{formatTime(item.time)}</Text>
               </View>
-              <Text style={s.histCheck}>✓</Text>
+              <TouchableOpacity onPress={() => deletarItem(item.id)}>
+                <Text
+                  style={{
+                    color: "#ff453a",
+                    fontSize: 18,
+                    paddingHorizontal: 8,
+                  }}
+                >
+                  ✕
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
           ItemSeparatorComponent={() => <View style={s.separator} />}
