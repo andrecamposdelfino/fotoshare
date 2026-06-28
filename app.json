@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "FotoShare",
+    "slug": "fotoshare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0F0F0F"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F0F0F"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.INTERNET"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FotoShare precisa da câmera para tirar fotos."
+        }
+      ]
+    ]
+  }
+}
